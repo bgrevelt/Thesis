@@ -1,1 +1,1 @@
-"c:\Program Files\Python35\python.exe" source/testbench.py
+python.exe source/testbench.py
