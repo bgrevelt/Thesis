@@ -1,0 +1,2 @@
+Code is a basically a copy of the code made available by [David Finlayson](https://bitbucket.org/david_finlayson/s7ktools/src/f583d2a8bc2e2b2711d808d897c124a0913aa174?at=default)
+I have added (limited) support for the 7008 packet and performed some modifications to get the code to run in python3. If I ever get to full support for the 7008 message, I will create a pull request and this code can be replaced with a dependency on David Finlayson's library.
