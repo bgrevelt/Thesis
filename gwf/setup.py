@@ -8,5 +8,5 @@ setup(name='gwf',
       author_email='b.grevelt@gmail.com',
       license='MIT',
       packages=['gwf'],
-      install_required=['matplotlib'],
+      install_requires=['matplotlib'],
       zip_safe=False)
