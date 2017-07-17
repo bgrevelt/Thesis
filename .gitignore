@@ -1,2 +1,9 @@
 testbench/source/__pycache__/
 *.pyc
+.idea/
+gwf/build/
+gwf/gwf.egg-info/
+*.sqlite
+testbench/Corpus/
+testbench/wcd_testbench.egg-info/
+*.log

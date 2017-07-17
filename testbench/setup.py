@@ -7,6 +7,6 @@ setup(name='wcd_testbench',
       author='Bouke Grevelt',
       author_email='b.grevelt@gmail.com',
       license='MIT',
-      install_requires=['matplotlib', 'numpy'],
-      #dependency_links=['git+https://github.com/bgrevelt/Thesis/tree/master/gwf'],
+      #install_requires=['matplotlib', 'numpy'],
+      dependency_links=['https://github.com/bgrevelt/Thesis/raw/master/gwf/dist/gwf-0.1-py3.5.egg#egg=gwf-0.1'],
       zip_safe=False)
