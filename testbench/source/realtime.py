@@ -73,6 +73,9 @@ class RealTimeEmulation:
         start_load = None
         end_load = None
 
+        if load < 0:
+            load = 0
+
         possible_loads = self.load_generator.possible_loads()
 
         for s, e in [(possible_loads[i], possible_loads[i+1]) for i in range(len(possible_loads)-1)]:
