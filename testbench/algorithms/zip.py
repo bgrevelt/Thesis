@@ -7,8 +7,8 @@ deflate = False
 def init(parameters):
     decoded = json.loads(parameters)
     global deflate
-    if 'compress' in decoded and decoded['compress'] == True:
-        deflate = True
+    if 'compress' in decoded:
+        deflate =  decoded['compress']
 
 def compress(input_path, output_path):
     with open(input_path, 'rb') as input_file:
