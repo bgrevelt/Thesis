@@ -2,6 +2,7 @@ import numpy as np
 import psutil
 import time
 from loadgenerator import CPU_load_generator
+import logging
 
 class RealTimeEmulation:
     def __init__(self):
@@ -26,15 +27,15 @@ class RealTimeEmulation:
 
         lower_load, upper_load = self._get_load_bounds(required_additional_load)
 
-        print('Starting lower bound: {}%'.format(lower_load))
+        logging.debug('Starting lower bound: {}%'.format(lower_load))
         lower_time = self._time_under_cpu_load(function, timer_function, lower_load)
         if lower_load == upper_load:
             return lower_time
 
-        print('Starting upper bound: {}%'.format(upper_load))
+        logging.debug('Starting upper bound: {}%'.format(upper_load))
         upper_time = self._time_under_cpu_load(function, timer_function, upper_load)
 
-        print('Interpolating to {} from using {} and {}'.format(required_additional_load, lower_time, upper_time))
+        logging.debug('Interpolating to {} from using {} and {}'.format(required_additional_load, lower_time, upper_time))
 
         self._release_claimed_memory()
 
