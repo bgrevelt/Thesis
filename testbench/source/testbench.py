@@ -14,6 +14,7 @@ import numpy
 import logging
 import visualizer
 import result_storage
+import pandas
 
 class TestManager:
 
@@ -31,6 +32,12 @@ class TestManager:
         self.file_info = {}
         self.results = result_storage.StorageManager()
 
+        # some pandas settings to get printing of the table right
+        pandas.set_option('display.height', 1000)
+        pandas.set_option('display.max_rows', 500)
+        pandas.set_option('display.max_columns', 500)
+        pandas.set_option('display.width', 1000)
+
         self._load_algorithms()
 
     def recompute_derived(self):
@@ -45,6 +52,10 @@ class TestManager:
 
         self._compute_derived_metrics()
         self._store_results()
+
+    def display_last_results_table(self):
+        table = self.results._get_most_recent_table()
+        print(pandas.read_sql_query("SELECT * FROM '{}'".format(table), self.results.conn).to_string(index=False))
 
     def run(self):
         self._get_input_file_meta_info()
@@ -87,10 +98,13 @@ class TestManager:
                 logging.info('Starting full file compression')
                 compression_time = self._compress(module, file, compressed_path)
                 compression_ratio = os.path.getsize(compressed_path) / os.path.getsize(file)
+                logging.info('Compression time {} seconds.'.format(compression_time))
+                logging.info('Compression ratio {}'.format(compression_ratio))
 
                 # decompress file measuring time
                 logging.info('Starting full file decompression')
                 decompression_time = self._decompress(module, compressed_path, decompressed_path)
+                logging.info('Decompression time {} seconds.'.format(decompression_time))
 
 
                 if self.check_for_losslelssness:
@@ -102,10 +116,12 @@ class TestManager:
                 # random access decompression
                 logging.info('Starting random access decompression')
                 random_access_decompression_time, random_access_lossless = self.random_access_compression(module,file, compressed_path)
+                logging.info('Random access decompression time {} seconds.'.format(random_access_decompression_time))
 
                 # real time stuff
                 logging.info('Starting real time compression')
                 realtime_compression_time = self._compress_real_time(module, file, real_time_compressed_path)
+                logging.info('Real time compression time {} seconds.'.format(real_time_compressed_path))
 
                 if name not in self.metrics:
                     self.metrics[name] = {}
@@ -115,7 +131,7 @@ class TestManager:
                 'Compression time' : compression_time,
                 'Decompression time' : decompression_time,
                 'Losslessness' : lossless and random_access_lossless,
-                'Random access decmompression' : random_access_decompression_time,
+                'Random access decompression time' : random_access_decompression_time,
                 'Real-time compression time' : realtime_compression_time
                 }
 
@@ -293,4 +309,5 @@ if __name__ == '__main__':
     manager = TestManager()
     manager.run()
     #manager.recompute_derived()
+    #manager.display_last_results_table()
 
