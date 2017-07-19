@@ -16,12 +16,12 @@ class StorageManager:
          create_string = '''CREATE TABLE IF NOT EXISTS "{}" (
                         File TEXT,
                         Algorithm TEXT,
-                        "Compression rate" REAL,
+                        "Compression ratio" REAL,
                         "Compression time" REAL,
                         "Decompression time" REAL,
                         "Lossless" INTEGER,
-                        "Random access decompression time"  REAL
-                        'Real-time compression time' REAL
+                        "Random access decompression time"  REAL,
+                        'Real-time compression time' REAL,
                         "Real-time" REAL,
                         "Procesing" REAL,
                         "Cost" REAL
@@ -31,8 +31,8 @@ class StorageManager:
 
          for algorithm, algorithm_results in results.items():
              for file, file_results in algorithm_results.items():
-                insert_string = '''INSERT INTO "{table_name}" (File,Algorithm,"Compression ratio","Compression time","Decompression time","Lossless","Real-time","Procesing","Cost")
-                VALUES("{file}","{algorithm}",{cr},{ct},{dt},{lossless}, {realtime}, {processing}, {cost})'''
+                insert_string = '''INSERT INTO "{table_name}" (File,Algorithm,"Compression ratio","Compression time","Decompression time","Lossless","Random access decompression time", 'Real-time compression time', "Real-time", "Procesing","Cost")
+                VALUES("{file}","{algorithm}",{cr},{ct},{dt},{lossless}, {ra_dt}, {rt_ct} {realtime}, {processing}, {cost})'''
                 insert_string = insert_string.format( table_name=table_name,
                                       file=file,
                                       algorithm=algorithm,
@@ -42,7 +42,9 @@ class StorageManager:
                                       lossless='1' if file_results['Losslessness'] else '0',
                                       processing=file_results['Processing'],
                                       realtime=file_results['Real-time'],
-                                      cost=file_results['Cost'])
+                                      cost=file_results['Cost'],
+                                      ra_dt = file_results['Random access decompression time'],
+                                      rt_ct = file_results['Real-time compression time'])
                 print(insert_string)
                 self.cursor.execute(insert_string)
          self.conn.commit()
@@ -75,7 +77,7 @@ class StorageManager:
             metrics[algorithm][file]['Compression time'] = compression_time
             metrics[algorithm][file]['Decompression time'] = decompression_time
             metrics[algorithm][file]['Losslessness'] = False if lossless == 0 else True
-            metrics[algorithm][file]['Random access decompression'] = ra_decompression_time
+            metrics[algorithm][file]['Random access decompression time'] = ra_decompression_time
             metrics[algorithm][file]['Real-time compression time'] = rt_compression_time
             metrics[algorithm][file]['Processing'] = processing
             metrics[algorithm][file]['Real-time'] = real_time
