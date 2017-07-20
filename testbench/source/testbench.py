@@ -121,7 +121,7 @@ class TestManager:
                 # real time stuff
                 logging.info('Starting real time compression')
                 realtime_compression_time = self._compress_real_time(module, file, real_time_compressed_path)
-                logging.info('Real time compression time {} seconds.'.format(real_time_compressed_path))
+                logging.info('Real time compression time {} seconds.'.format(realtime_compression_time))
 
                 if name not in self.metrics:
                     self.metrics[name] = {}
