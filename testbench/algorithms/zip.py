@@ -1,6 +1,7 @@
 import zipfile
 import json
 from gwf import File as gwf
+import os
 
 deflate = False
 
@@ -40,5 +41,6 @@ def decompress_record(input_path, output_path, record_id):
             with open(output_path, 'wb') as f:
                 f.write(wc.serialize())
             break
+    os.remove(temp_file)
 
 
