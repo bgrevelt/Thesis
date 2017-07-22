@@ -44,12 +44,6 @@ class TestManager:
         self._get_input_file_meta_info()
 
         self.metrics = self.results.fetch_most_recent()
-        # for alg, fr in self.metrics.items():
-        #     for file, metrics in fr.items():
-        #         if not 'Corpus' in file:
-        #             fr['Corpus/' + file] = metrics
-        #             del fr[file]
-
         self._compute_derived_metrics()
         self._store_results()
 
@@ -57,13 +51,18 @@ class TestManager:
         table = self.results._get_most_recent_table()
         print(pandas.read_sql_query("SELECT * FROM '{}'".format(table), self.results.conn).to_string(index=False))
 
+    def display_last_results_chart(self):
+        self._get_input_file_meta_info()
+        self.metrics = self.results.fetch_most_recent()
+        self.normalize_metrics()
+        visualizer.visualize(self.metrics)
+
     def run(self):
         self._get_input_file_meta_info()
         self._compute_metrics()
         self._compute_derived_metrics()
         self._store_results()
         visualizer.visualize(self.metrics)
-        #self.vizualize_results()
 
     def _get_input_file_meta_info(self):
         for file in self.input_files:
@@ -297,6 +296,25 @@ class TestManager:
     def _store_results(self):
          self.results.store(self.metrics)
 
+
+    def normalize_metrics(self):
+        algorithms = self.metrics.keys()
+        files = set(file for algorithm in self.metrics.values() for file in algorithm.keys())
+        for algorithm in algorithms:
+            for file in files:
+                if file in self.metrics[algorithm]:
+                    file_size = self.file_info[file].size
+                    avg_record_size = self.file_info[file].size / len(self.file_info[file].ping_numbers)
+                    self.metrics[algorithm][file]['Compression time (seconds per byte)'] = self.metrics[algorithm][file]['Compression time'] / file_size
+                    self.metrics[algorithm][file]['Decompression time (seconds per byte)'] = self.metrics[algorithm][file]['Decompression time'] / file_size
+                    self.metrics[algorithm][file]['Random access decompression (seconds per byte)'] = self.metrics[algorithm][file]['Random access decompression time'] / (avg_record_size)
+                    self.metrics[algorithm][file]['Real-time compression time (seconds per byte)'] = self.metrics[algorithm][file]['Real-time compression time'] / file_size
+
+        # del self.metrics[algorithm][file]['Compression time']
+        # del self.metrics[algorithm][file]['Decompression time']
+        # del self.metrics[algorithm][file]['Random access decompression']
+        # del self.metrics[algorithm][file]['Real-time compression time']
+
 def init_logging(level):
     logging.basicConfig(filename='testbench_run.log', level=level, format='%(asctime)s %(levelname)s: %(message)s', filemode='w')
     rootLogger = logging.getLogger()
@@ -307,7 +325,8 @@ def init_logging(level):
 if __name__ == '__main__':
     init_logging(logging.INFO)
     manager = TestManager()
-    manager.run()
+    #manager.run()
     #manager.recompute_derived()
     #manager.display_last_results_table()
+    manager.display_last_results_chart()
 
