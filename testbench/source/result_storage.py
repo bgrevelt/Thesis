@@ -32,7 +32,7 @@ class StorageManager:
          for algorithm, algorithm_results in results.items():
              for file, file_results in algorithm_results.items():
                 insert_string = '''INSERT INTO "{table_name}" (File,Algorithm,"Compression ratio","Compression time","Decompression time","Lossless","Random access decompression time", 'Real-time compression time', "Real-time", "Procesing","Cost")
-                VALUES("{file}","{algorithm}",{cr},{ct},{dt},{lossless}, {ra_dt}, {rt_ct} {realtime}, {processing}, {cost})'''
+                VALUES("{file}","{algorithm}",{cr},{ct},{dt},{lossless}, {ra_dt}, {rt_ct}, {realtime}, {processing}, {cost})'''
                 insert_string = insert_string.format( table_name=table_name,
                                       file=file,
                                       algorithm=algorithm,
