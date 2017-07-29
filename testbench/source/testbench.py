@@ -357,6 +357,5 @@ class TestManager:
 # Very important to keep this line. The multiprocessing module will do all kinds of wonky stuuf if it is omitted
 if __name__ == '__main__':
     manager = TestManager()
-    #manager.run()
-    manager.random_access_only()
+    manager.run()
 
