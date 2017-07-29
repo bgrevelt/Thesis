@@ -15,6 +15,7 @@ import logging
 import visualizer
 import result_storage
 import pandas
+import command_line_parser
 
 class TestManager:
 
@@ -31,6 +32,9 @@ class TestManager:
         self.check_for_losslelssness = False
         self.file_info = {}
         self.results = result_storage.StorageManager()
+        self.options = command_line_parser.Parser()
+
+        self.init_logging(logging.DEBUG if self.options.verbose() else logging.INFO)
 
         # some pandas settings to get printing of the table right
         pandas.set_option('display.height', 1000)
@@ -58,11 +62,30 @@ class TestManager:
         visualizer.visualize(self.metrics)
 
     def run(self):
-        self._get_input_file_meta_info()
-        self._compute_metrics()
-        self._compute_derived_metrics()
-        self._store_results()
-        visualizer.visualize(self.metrics)
+        if self.options.compute_metrics() or self.options.compute_derived_metrics() or self.options.normalize_results():
+            self._get_input_file_meta_info()
+
+        if self.options.compute_metrics():
+            self._compute_metrics()
+        else:
+            self.metrics = self.results.fetch_most_recent()
+
+        if self.options.compute_derived_metrics():
+            self._compute_derived_metrics()
+
+        if self.options.store():
+            self._store_results()
+
+        if self.options.normalize_results():
+            self._normalize_metrics()
+
+        if self.options.show_table():
+            table = self.results._get_most_recent_table()
+            print(pandas.read_sql_query("SELECT * FROM '{}'".format(table), self.results.conn).to_string(index=False))
+
+        if self.options.show_graph():
+            visualizer.visualize(self.metrics)
+
 
     def _get_input_file_meta_info(self):
         for file in self.input_files:
@@ -164,19 +187,20 @@ class TestManager:
         times = []
         lossless = []
 
+        print(len(self.random_access_records.items()))
+        print(self.random_access_records.keys())
+
         for record_id, (file_offset, size) in self.random_access_records.items():
             output_path = os.path.join(self.temporary_directory, name + '.ra_decompressed_{}'.format(record_id))
             times.append(timer.time_process(lambda : module.decompress(compressed_file, output_path, record_id)))
 
-            # get the decompressed data
-            with open(original_file, 'rb') as original, open(output_path, 'rb') as decompressed:
-                decompressed_data = decompressed.read()
-                original.seek(file_offset)
-                original_data = original.read(size)
-                if self.check_for_losslelssness:
+            if self.check_for_losslelssness:
+                # get the decompressed data
+                with open(original_file, 'rb') as original, open(output_path, 'rb') as decompressed:
+                    decompressed_data = decompressed.read()
+                    original.seek(file_offset)
+                    original_data = original.read(size)
                     lossless.append(decompressed_data == original_data)
-                else:
-                    lossless.append(True)
 
             if self.clean_after_use:
                 os.remove(output_path)
@@ -184,11 +208,14 @@ class TestManager:
         return (numpy.average(times), all(lossless))
 
 
-    def _get_temporary_file_names(self, orignial):
+    def _get_temporary_file_names(self, orignial, algorithm_name):
         name = os.path.splitext(os.path.split(orignial)[1])[0]
-        compressed = os.path.join(self.temporary_directory, name + '.compressed')
-        decompressed = os.path.join(self.temporary_directory, name + '.decompressed')
-        compressed_rt = os.path.join(self.temporary_directory, name + '.compressed_rt')
+        dir = os.path.join(self.temporary_directory, algorithm_name)
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+        compressed = os.path.join(dir, name + '.compressed')
+        decompressed = os.path.join(dir, name + '.decompressed')
+        compressed_rt = os.path.join(dir, name + '.compressed_rt')
         return (compressed, decompressed, compressed_rt)
 
     def _cleanup(self):
@@ -201,11 +228,8 @@ class TestManager:
             module = os.path.splitext(os.path.split(path)[1])[0]
             parameters = self.config.get_algorithm_parameters(algorithm)
 
-            #TODO: REMOVE
-            if not 'fake' in path.lower():
-                sys.path.append(base)
-                self.algorithms.append((algorithm, importlib.import_module(module), parameters))
-                # TODO: we don't check if the proper methods exist in this module because that's not pythonic. Instead we should catch atribute errors when we try to call the function
+            sys.path.append(base)
+            self.algorithms.append((algorithm, importlib.import_module(module), parameters))
 
     def _get_file_meta_data(self, file):
         logging.info('Reading input file meta data for file {}'.format(file))
@@ -225,16 +249,19 @@ class TestManager:
         algorithms = self.metrics.keys()
         files = set(file for algorithm in self.metrics.values() for file in algorithm.keys())
 
+        logging.debug('Started computing derived metrics')
         for algorithm in algorithms:
+            logging.debug('Algorithm: {}'.format(algorithm))
             for file in files:
+                logging.debug('\tFile: {}'.format(file))
                 if file in self.metrics[algorithm]:
+
                     file_meta_info = self.file_info[file]
                     compression_ratio = self.metrics[algorithm][file]['Compression ratio']
                     compression_time = self.metrics[algorithm][file]['Compression time']
                     decompression_time = self.metrics[algorithm][file]['Decompression time']
-                    #todo: remove if
-                    ra_decompression_time = self.metrics[algorithm][file]['Random access decompression'] if 'Random access decompression' in self.metrics[algorithm][file] else 1.0
-                    real_time_compression_time = self.metrics[algorithm][file]['Real-time compression time'] if 'Real-time compression time' in self.metrics[algorithm][file] else 1.0
+                    ra_decompression_time = self.metrics[algorithm][file]['Random access decompression time']
+                    real_time_compression_time = self.metrics[algorithm][file]['Real-time compression time']
                     real_time_metric = self._computeRealTimeMetric(file_meta_info, real_time_compression_time)
                     processing_metric = self._computeProcessingMetric(file_meta_info, decompression_time, ra_decompression_time)
                     cost_metric = self._computeCostMetric(file_meta_info, compression_ratio, compression_time, real_time_metric, processing_metric)
@@ -253,42 +280,47 @@ class TestManager:
         pass
 
     def _computeProcessingMetric(self, file_meta_info, decompression_time, random_access_decompression_time):
+        logging.debug('\t\tStarted computing processing metric')
         number_of_decompressions = self.config.get_metric_parameters('number of processing decompressions')
         decompression_ratio = self.config.get_metric_parameters('Processing ratio')
+        logging.debug('\t\t\tNumber of decompressions: {}. Decompression ratio: {}'.format(number_of_decompressions, decompression_ratio))
         full_decompression_time = decompression_time
         number_of_records_in_file = len(file_meta_info.ping_numbers)
         partial_decompression_time = number_of_records_in_file * decompression_ratio * random_access_decompression_time
+        logging.debug('\t\t\tPartial decompression time = <number of records in file> * <decompression ration> * <random access decopression time> = {} * {} * {} = {}'.format(number_of_records_in_file, decompression_ratio, random_access_decompression_time, partial_decompression_time))
         processing_decompression_time = min(full_decompression_time, partial_decompression_time)
+        logging.debug('\t\t\tProcessing decompressin time = min(<full file decompression time>, <partial decompression time>) = min({}, {}) = {}'.format(full_decompression_time, partial_decompression_time, processing_decompression_time))
         processing_metric = number_of_decompressions * processing_decompression_time
+        logging.debug('\t\t\tProcessing metric = <number of decompressions> * <processing decompression time> = {} * {} = {}'.format(number_of_decompressions, processing_decompression_time, processing_metric))
         return processing_metric
 
     def _computeCostMetric(self, file_meta_info, compression_ratio, compression_time, real_time_metric, processing_metric):
-        logging.info('Started computing cost metric')
+        logging.debug('\t\tStarted computing cost metric')
         cost_of_ship_time = self.config.get_metric_parameters('cost of ship time')
-        logging.info('\tCost of ship time: {}'.format(cost_of_ship_time))
+        logging.debug('\t\t\tCost of ship time: {}'.format(cost_of_ship_time))
         compression_time_hours = compression_time / 3600
         cost_of_compression = cost_of_ship_time * compression_time_hours if real_time_metric < 1 else 0
-        logging.info('\tReal time metric: {}'.format(real_time_metric))
-        logging.info('\tCost of compression: {}'.format(cost_of_compression))
+        logging.debug('\t\t\tReal time metric: {}'.format(real_time_metric))
+        logging.debug('\t\t\tCost of compression: {}'.format(cost_of_compression))
 
         cost_of_processing_time = self.config.get_metric_parameters('cost of processing time')
         processing_time_hours = processing_metric / 3600
         cost_of_decompression = processing_time_hours * cost_of_processing_time
-        logging.info('\tCost of decompression = <processing time> * <cost of processing time> ='
+        logging.debug('\t\t\tCost of decompression = <processing time> * <cost of processing time> ='
                      '{} * {} = {}'.format(processing_time_hours, cost_of_processing_time, cost_of_decompression))
 
         size_in_mb = file_meta_info.size / (1024**2)
         data_reduction = size_in_mb * (1 - compression_ratio)
-        logging.info('\tData redcution = <file size> * (1- <compression ratio> ='
+        logging.debug('\t\t\tData redcution = <file size> * (1- <compression ratio> ='
                      '{} * (1 - {}) = {}'.format(size_in_mb, compression_ratio, data_reduction))
 
         cost_of_data_ownership = self.config.get_metric_parameters('cost of data ownership')
         cost_of_ownership_reduction = data_reduction * cost_of_data_ownership
-        logging.info('\tReduction in cost of ownership = <data reduction> * <cost of ownership> ='
+        logging.debug('\t\t\tReduction in cost of ownership = <data reduction> * <cost of ownership> ='
                      '{} * {} = {}'.format(data_reduction, cost_of_data_ownership, cost_of_ownership_reduction))
 
         cost_metric = cost_of_ownership_reduction - cost_of_compression - cost_of_decompression
-        logging.info('\tCost metric = <Reduction in cost of ownership> - <cost of compression> - <cost of decompression> ='
+        logging.debug('\t\t\tCost metric = <Reduction in cost of ownership> - <cost of compression> - <cost of decompression> ='
                      '{} - {} - {} = {}'.format(cost_of_ownership_reduction, cost_of_compression, cost_of_decompression, cost_metric))
 
         return cost_metric
@@ -297,7 +329,7 @@ class TestManager:
          self.results.store(self.metrics)
 
 
-    def normalize_metrics(self):
+    def _normalize_metrics(self):
         algorithms = self.metrics.keys()
         files = set(file for algorithm in self.metrics.values() for file in algorithm.keys())
         for algorithm in algorithms:
@@ -310,23 +342,21 @@ class TestManager:
                     self.metrics[algorithm][file]['Random access decompression (seconds per byte)'] = self.metrics[algorithm][file]['Random access decompression time'] / (avg_record_size)
                     self.metrics[algorithm][file]['Real-time compression time (seconds per byte)'] = self.metrics[algorithm][file]['Real-time compression time'] / file_size
 
-        # del self.metrics[algorithm][file]['Compression time']
-        # del self.metrics[algorithm][file]['Decompression time']
-        # del self.metrics[algorithm][file]['Random access decompression']
-        # del self.metrics[algorithm][file]['Real-time compression time']
+        #del self.metrics[algorithm][file]['Compression time']
+        #del self.metrics[algorithm][file]['Decompression time']
+        #del self.metrics[algorithm][file]['Random access decompression time']
+        #del self.metrics[algorithm][file]['Real-time compression time']
 
-def init_logging(level):
-    logging.basicConfig(filename='testbench_run.log', level=level, format='%(asctime)s %(levelname)s: %(message)s', filemode='w')
-    rootLogger = logging.getLogger()
-    consoleHandler = logging.StreamHandler()
-    rootLogger.addHandler(consoleHandler)
+    def init_logging(self, level):
+        logging.basicConfig(filename='testbench_run.log', level=logging.DEBUG, format='%(asctime)s %(levelname)s: %(message)s', filemode='w')
+        rootLogger = logging.getLogger()
+        consoleHandler = logging.StreamHandler()
+        consoleHandler.setLevel(level)
+        rootLogger.addHandler(consoleHandler)
 
 # Very important to keep this line. The multiprocessing module will do all kinds of wonky stuuf if it is omitted
 if __name__ == '__main__':
-    init_logging(logging.INFO)
     manager = TestManager()
     #manager.run()
-    #manager.recompute_derived()
-    #manager.display_last_results_table()
-    manager.display_last_results_chart()
+    manager.random_access_only()
 
