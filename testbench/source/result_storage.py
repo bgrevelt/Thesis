@@ -1,6 +1,6 @@
 import sqlite3
 import datetime
-import os
+import logging
 
 class NoStoredResultsError(Exception):
     pass
@@ -45,7 +45,7 @@ class StorageManager:
                                       cost=file_results['Cost'],
                                       ra_dt = file_results['Random access decompression time'],
                                       rt_ct = file_results['Real-time compression time'])
-                print(insert_string)
+                logging.debug('Exexuting SQL query: {}'.format(insert_string))
                 self.cursor.execute(insert_string)
          self.conn.commit()
 
