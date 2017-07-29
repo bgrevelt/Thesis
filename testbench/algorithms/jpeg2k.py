@@ -34,6 +34,9 @@ def decompress(input_path, output_path, record_id = None):
                 compressed_data = read_compressed_data(input_file, block_size)
                 decompressed_data = _decompress(compressed_data)
                 write_decompressed_data(output_file, decompressed_data)
+
+                if record_id != None:
+                    return
             else:
                 skip_block(input_file, block_size)
 
