@@ -114,7 +114,7 @@ class TestManager:
                 module.init(parameters)
 
                 # determine output file name and decompressed file name
-                compressed_path, decompressed_path, real_time_compressed_path = self._get_temporary_file_names(file)
+                compressed_path, decompressed_path, real_time_compressed_path = self._get_temporary_file_names(file, name)
 
                 # compress file meauring time
                 logging.info('Starting full file compression')
@@ -187,9 +187,6 @@ class TestManager:
         times = []
         lossless = []
 
-        print(len(self.random_access_records.items()))
-        print(self.random_access_records.keys())
-
         for record_id, (file_offset, size) in self.random_access_records.items():
             output_path = os.path.join(self.temporary_directory, name + '.ra_decompressed_{}'.format(record_id))
             times.append(timer.time_process(lambda : module.decompress(compressed_file, output_path, record_id)))
@@ -238,7 +235,9 @@ class TestManager:
         record_info = [(wc.ping_number, wc.ping_time_seconds + (wc.ping_time_micro_seconds / 1E6)) for wc in gwf.read()]
         ping_numbers, generation_times = zip(*record_info)
         size = os.path.getsize(file)
-        return meta_info(timespan = generation_times[len(generation_times) -1] - generation_times[0], ping_numbers = ping_numbers, path=file, size=size)
+        info = meta_info(timespan = generation_times[len(generation_times) -1] - generation_times[0], ping_numbers = ping_numbers, path=file, size=size)
+        logging.info("{}: {} MB. {} records over {} seconds".format(file, info.size / 1024**2, len(info.ping_numbers), info.timespan))
+        return info
 
     def _get_random_access_records(self, file, records_in_file, number_of_records_to_select):
         records = random.sample(records_in_file, number_of_records_to_select)
@@ -341,6 +340,7 @@ class TestManager:
                     self.metrics[algorithm][file]['Decompression time (seconds per byte)'] = self.metrics[algorithm][file]['Decompression time'] / file_size
                     self.metrics[algorithm][file]['Random access decompression (seconds per byte)'] = self.metrics[algorithm][file]['Random access decompression time'] / (avg_record_size)
                     self.metrics[algorithm][file]['Real-time compression time (seconds per byte)'] = self.metrics[algorithm][file]['Real-time compression time'] / file_size
+                    self.metrics[algorithm][file]['Cost reduction (reduction per byte)'] =  self.metrics[algorithm][file]['Cost'] / file_size
 
         #del self.metrics[algorithm][file]['Compression time']
         #del self.metrics[algorithm][file]['Decompression time']

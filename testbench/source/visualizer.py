@@ -21,7 +21,8 @@ def visualize(result):
                 restructured_results[metric][(os.path.split(file)[1],algorithm)] = value
 
     result = restructured_results
-    del result['Losslessness']
+    if 'Losslessness' in result:
+        del result['Losslessness']
 
     for index, (metric, metric_results) in enumerate(result.items()):
         files, algorithms = zip(*metric_results.keys())
